@@ -5,7 +5,7 @@ IP = 'localhost'
 PORT = 9091
 MAX_CONNECTIONS = 1
 
-MESSAGE = 'GET / HTTP/1.1\r\nHOST: example.local\r\n\r\n'
+MESSAGE = 'GET /test/test.txt HTTP/1.1\r\nHOST: example.local\r\n\r\n'
 
 clients = [socket.socket(socket.AF_INET, socket.SOCK_STREAM) for i in range(MAX_CONNECTIONS)]
 for client in clients:

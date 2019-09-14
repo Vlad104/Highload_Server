@@ -1,5 +1,6 @@
 from email.parser import Parser
 import datetime
+import os
 
 class Request:
     def __init__(self, method, target, version, headers, rfile):
@@ -15,6 +16,13 @@ class Response:
         self.reason = reason
         self.headers = headers
         self.body = body
+
+STATUSES = {
+    200: 'OK',
+    403: 'Forbiten',
+    404: 'Not found',
+    405: '405'
+}
 
 MAX_LINE = 1024
 
@@ -70,25 +78,107 @@ def parseHeaders(rfile):
     sheaders = b''.join(headers).decode('iso-8859-1')
     return Parser().parsestr(sheaders)
 
-RESP = Response(
-    status = 200,
-    reason = 'OK',
-    headers = {
-        'Host': 'localhost',
-        'Date': str(datetime.datetime.now())
-    },
-    body = bytes('Hey man', encoding='UTF-8')
-)
+def makeResponse(req):
+    method = req.method
 
-def sendResponse(conn, resp=RESP):
+    if method == 'GET':
+        resp = responseToGet(req)
+    elif method == 'HEAD':
+        resp = responseToHead(req)
+    else:
+        resp = responseToError(req)
+
+    return resp
+
+
+def responseToHead(req):
+    _, status = findFile(req)
+
+    headers = {
+        'Server': 'python_select_epoll',
+        'Date': str(datetime.datetime.now()),
+        'Connection': 'keep-alive'
+    }
+
+    return Response(status, STATUSES[status], headers)
+
+def responseToGet(req):
+    body, status = makeBody(req)
+
+    headers = {}
+    if status == 200:
+        headers = {
+            'Server': 'python_select_epoll',
+            'Date': str(datetime.datetime.now()),
+            'Connection': 'keep-alive',
+            'Content-Length': len(body),
+            'Content-Type': 'text/html;charset=utf-8'
+        }
+    else:
+        headers = {
+            'Server': 'python_select_epoll',
+            'Date': str(datetime.datetime.now()),
+            'Connection': 'keep-alive'
+        }
+        
+
+    return Response(status, STATUSES[status], headers, body)
+
+def responseToError(req):
+    return Response(405, STATUSES[405])
+
+
+def makeBody(req):
+    file, status = findFile(req)
+    if (status != 200):
+        return '', status
+
+    file_content = b''
+    while True:
+        buff = os.read(file, 1024)
+        if not buff:
+            break
+        file_content += buff
+    os.close(file)
+
+    return file_content, 200
+
+def findFile(req):
+    root = '.'
+    path = req.target
+    if path == '' or path == '/':
+        path = '/index.html'
+
+    path = f'{root}{path}'
+
+    if os.path.isfile(path):
+        if checkRoot(path):
+            try:
+                file = os.open(path, os.O_RDONLY)
+            except:
+                return '', 404
+        else:
+            return '', 403
+    else:
+        return '', 404
+
+    return file, 200
+    
+
+def checkRoot(path):
+    extention = os.path.splitext(path)[1][1:].strip().lower()
+    return extention == 'html'
+
+
+def sendResponse(conn, resp):
     wfile = conn.makefile('wb')
     status_line = f'HTTP/1.1 {resp.status} {resp.reason}\r\n'
-    wfile.write(status_line.encode('iso-8859-1'))
+    wfile.write(status_line.encode('UTF-8'))
 
     if resp.headers:
         for key in resp.headers:
             header_line = f'{key}: {resp.headers[key]}\r\n'
-            wfile.write(header_line.encode('iso-8859-1'))
+            wfile.write(header_line.encode('UTF-8'))
 
     wfile.write(b'\r\n')
 

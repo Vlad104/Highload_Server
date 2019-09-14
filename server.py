@@ -2,15 +2,13 @@ import socket
 import select
 import time
 import random
+import os
 
-import http
+import myHttp
 
 IP = 'localhost'
 PORT = 9091
 MAX_CONNECTIONS = 1
-
-ReadList = list()
-WriteList = list()
 
 def createSocket():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -20,56 +18,56 @@ def createSocket():
 
     return server
 
-def handlerForRead(readList, server):
-    for resource in readList:
-        if resource is server:
-            conn, address = resource.accept()
-            conn.setblocking(0)
-            ReadList.append(conn)
-            print("new connection from {address}".format(address=address))
-        else:
-            req = http.handleRequest(resource)
-            doWork(req)
-            if resource not in WriteList:
-                WriteList.append(resource)
-            else:
-                clearResource(resource)
-
-def handlerForWrite(writeList):
-    for resource in writeList:
-        try:
-            body = readFile()
-            http.sendResponse(resource, body)
-        except OSError:
-            clearResource(resource)
-
-def clearResource(resource):
-    if resource in WriteList:
-        WriteList.remove(resource)
-    if resource in ReadList:
-        ReadList.remove(resource)
-    resource.close()
-    print('closing connection...')
-    
-def doWork(req):
-    print(req)
-
-def readFile():
-    path = 'http.py'
-    f = open(path, 'rb')
-    return f.read()
-
 def main():
+    print('Starting server on {}:{} ...'.format(IP, PORT))
     server = createSocket()
-    ReadList.append(server)
-    print('Server is running on {IP}:{PORT} ...'.format(IP=IP, PORT=PORT))
+    epoll = select.epoll()
+    epoll.register(server.fileno(), select.EPOLLIN | select.EPOLLET)
 
     try:
-        while ReadList:
-            readList, writeList, _ = select.select(ReadList, WriteList, [])
-            handlerForRead(readList, server)
-            handlerForWrite(writeList)
+        connections = {}
+        requests = {}
+        responses = {}
+        while True:
+            events = epoll.poll(1)
+            for fileno, event in events:
+                if fileno == server.fileno():
+                    try:
+                        while True:
+                            conn, address = server.accept()
+                            conn.setblocking(0)
+                            epoll.register(conn.fileno(), select.EPOLLIN | select.EPOLLET)
+                            connections[conn.fileno()] = conn
+                            requests[conn.fileno()] = b''
+                    except socket.error:
+                        pass
+
+                elif event & select.EPOLLIN:
+                    requests[fileno] = myHttp.handleRequest(connections[fileno])
+                    epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
+                    responses[fileno] = myHttp.makeResponse(requests[fileno])
+
+
+                elif event & select.EPOLLOUT:
+                    myHttp.sendResponse(connections[fileno], responses[fileno])
+                    responses[fileno] = None
+
+                    if responses[fileno] is None:
+                        epoll.modify(fileno, select.EPOLLET)
+                        connections[fileno].shutdown(socket.SHUT_RDWR)
+
+                elif event & select.EPOLLHUP:
+                    epoll.unregister(fileno)
+                    connections[fileno].close()
+                    del connections[fileno]
+
     except KeyboardInterrupt:
-        print('Server was stopped')
+        print ('KeyboardInterrupt =(')
+
+    finally:
+        print ("Server stoped")
+        epoll.unregister(server.fileno())
+        epoll.close()
+        server.close()
 
 main()
