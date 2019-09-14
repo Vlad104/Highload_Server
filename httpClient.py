@@ -17,4 +17,4 @@ for i in range(MAX_CONNECTIONS):
 
 for client in clients:
     data = client.recv(1024)
-    print(str(data))
+    print(str(data, encoding='UTF-8'))

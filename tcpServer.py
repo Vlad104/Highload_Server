@@ -3,11 +3,9 @@ import select
 import time
 import random
 
-import http
-
 IP = 'localhost'
 PORT = 9091
-MAX_CONNECTIONS = 1
+MAX_CONNECTIONS = 12
 
 ReadList = list()
 WriteList = list()
@@ -28,18 +26,24 @@ def handlerForRead(readList, server):
             ReadList.append(conn)
             print("new connection from {address}".format(address=address))
         else:
-            req = http.handleRequest(resource)
-            doWork(req)
-            if resource not in WriteList:
-                WriteList.append(resource)
+            data = ''
+            try:
+                data = resource.recv(1024)
+            except ConnectionResetError:
+                pass
+
+            if data:
+                doWork(data)
+                if resource not in WriteList:
+                    WriteList.append(resource)
+
             else:
                 clearResource(resource)
 
 def handlerForWrite(writeList):
     for resource in writeList:
         try:
-            body = readFile()
-            http.sendResponse(resource, body)
+            resource.send(bytes('Hello from server!', encoding='UTF-8'))
         except OSError:
             clearResource(resource)
 
@@ -51,13 +55,10 @@ def clearResource(resource):
     resource.close()
     print('closing connection...')
     
-def doWork(req):
-    print(req)
-
-def readFile():
-    path = 'http.py'
-    f = open(path, 'rb')
-    return f.read()
+def doWork(data):
+    print("getting data: {data}".format(data=str(data)))
+    sec = random.randint(0, 5)
+    time.sleep(sec)
 
 def main():
     server = createSocket()
@@ -66,7 +67,7 @@ def main():
 
     try:
         while ReadList:
-            readList, writeList, _ = select.select(ReadList, WriteList, [])
+            readList, writeList, exceptional = select.select(ReadList, WriteList, ReadList)
             handlerForRead(readList, server)
             handlerForWrite(writeList)
     except KeyboardInterrupt:
