@@ -3,12 +3,44 @@ import select
 import time
 import random
 import os
+import configparser
 
 import myHttp
 
+CONFIG_PATH = './httpd.conf'
 IP = 'localhost'
 PORT = 9091
 MAX_CONNECTIONS = 1
+CPU_LIMIT = 1
+ROOT = './'
+
+def config(mode='DEV'):
+    config = configparser.ConfigParser()
+    if (os.path.isfile(CONFIG_PATH)):
+        config.read(CONFIG_PATH)
+        IP = config[mode]['ip']
+        PORT = config[mode]['port']
+        CPU_LIMIT = config[mode]['cpu_limit']
+        ROOT = config[mode]['document_root']
+    else:
+        config[mode] = {
+            'ip': 'localhost',
+            'port': '9091',
+            'cpu_limit': '4',
+            'thread_limit': '256',
+            'document_root': '/var/www/html',
+        }
+
+        with open(CONFIG_PATH, 'w') as configfile:
+            config.write(configfile)
+
+def doFork():
+    pids = []
+    for i in range(CPU_LIMIT):
+        pid = os.fork()
+        pids.append(pid)
+
+    return pids
 
 def createSocket():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -19,7 +51,10 @@ def createSocket():
     return server
 
 def main():
-    print('Starting server on {}:{} ...'.format(IP, PORT))
+    config()
+    print(f'Starting server on {IP}:{PORT} ...')
+    pids = doFork()
+    print(f'Server using {len(pids)} cpus\n Pids: {pids} ...')
     server = createSocket()
     epoll = select.epoll()
     epoll.register(server.fileno(), select.EPOLLIN | select.EPOLLET)
@@ -62,7 +97,7 @@ def main():
                     del connections[fileno]
 
     except KeyboardInterrupt:
-        print ('KeyboardInterrupt =(')
+        print ('KeyboardInterrupt')
 
     finally:
         print ("Server stoped")
