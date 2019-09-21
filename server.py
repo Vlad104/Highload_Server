@@ -7,8 +7,8 @@ import configparser
 
 import myHttp
 
-CONFIG_PATH = './httpd.conf'
-MAX_CONNECTIONS = 10
+CONFIG_PATH = '/etc/httpd.conf'
+MAX_CONNECTIONS = 1000
 
 def config(mode='DEV'):
     config = configparser.ConfigParser()
@@ -22,7 +22,7 @@ def config(mode='DEV'):
         return ip, int(port), int(cpu_limit), root
     else:
         config[mode] = {
-            'ip': 'localhost',
+            'ip': '0.0.0.0',
             'port': '80',
             'cpu_limit': '4',
             'thread_limit': '256',
@@ -32,7 +32,7 @@ def config(mode='DEV'):
         with open(CONFIG_PATH, 'w') as configfile:
             config.write(configfile)
 
-        return 'localhost', 80, 4, '/var/www/html'
+        return '0.0.0.0', 80, 4, '/var/www/html'
 
 def doFork(cpu_limit = 1):
     pids = []
