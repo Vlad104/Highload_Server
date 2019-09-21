@@ -5,10 +5,10 @@ RUN apt-get update
 RUN apt-get install -y gnupg
 RUN apt-get -y upgrade
 RUN apt-get install -y git
-RUN apt-get install python3
-RUN apt-get install python3-pip
+RUN apt-get install -y python3
+RUN apt-get install -y python3-pip
 
-RUN pip3 install configparser
+RUN pip3 install -y configparser
 
 RUN git clone https://github.com/Vlad104/Highload_Server.git # anticache comment
 WORKDIR Highload_Server
