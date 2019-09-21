@@ -1,6 +1,10 @@
 from email.parser import Parser
 import datetime
 import os
+import re
+import urllib.parse
+
+import staticWorker
 
 class Request:
     def __init__(self, method, target, version, headers, rfile):
@@ -30,20 +34,18 @@ def handleRequest(conn):
     return parseRequest(conn)
 
 def parseRequest(conn):
-    rfile = conn.makefile('rb')
-    method, target, ver = parseLine(rfile)
-    headers = parseHeaders(rfile)
-
-    host = headers.get('Host')
-    if not host:
-      raise Exception('Bad request')
-
-    return Request(method, target, ver, headers, rfile)
+    try:
+        rfile = conn.makefile('rb')
+        method, target, ver = parseLine(rfile)
+        headers = parseHeaders(rfile)
+        return Request(method, target, ver, headers, rfile)
+    except:
+        return None
 
 def parseLine(rfile):
     raw = rfile.readline()
 
-    req_line = str(raw, 'iso-8859-1')
+    req_line = str(raw, 'UTF-8')
     req_line = req_line.rstrip('\r\n')
     words = req_line.split()
     if len(words) != 3:
@@ -55,36 +57,30 @@ def parseLine(rfile):
 
     return method, target, ver
 
-MAX_HEADERS = 100
 def parseHeaders(rfile):
     headers = []
     while True:
         line = rfile.readline()
-
         if line in (b'\r\n', b'\n', b''):
             break
-
         headers.append(line)
-        if len(headers) > MAX_HEADERS:
-            raise Exception('Too many headers')
 
-    sheaders = b''.join(headers).decode('iso-8859-1')
+    sheaders = b''.join(headers).decode('UTF-8')
     return Parser().parsestr(sheaders)
 
 def makeResponse(root, req):
     method = req.method
 
     if method == 'GET':
-        resp = responseToGet(root, req)
+        return responseToGet(root, req)
     elif method == 'HEAD':
-        resp = responseToHead(root, req)
+        return responseToHead(root, req)
     else:
-        resp = responseToError(req)
-
-    return resp
+        return responseToError(req)
 
 def responseToHead(root, req):
-    _, _, status = findFile(root, req)
+    path = req.target
+    status, _ = staticWorker.getFileStatus(root, path)
 
     headers = {
         'Server': SERVER_NAME,
@@ -119,9 +115,9 @@ def responseToError(req):
     return Response(405, STATUSES[405])
 
 def makeBody(root, req):
-    file, contentType, status = findFile(root, req)
+    file, contentType, status = getFile(root, req)
     if (status != 200):
-        return '', status
+        return '', '', status
 
     fileContent = b''
     while True:
@@ -133,30 +129,11 @@ def makeBody(root, req):
 
     return fileContent, contentType, 200
 
-def findFile(root, req):
-    path = req.target
-    if path == '' or path == '/':
-        path = '/index.html'
+def getFile(root, req):
+    path = req.target.split('?')[0]
+    path = urllib.parse.unquote(path)
 
-    path = f'{root}{path}'
-
-    if not os.path.isfile(path):
-        return '', '', 404
-    
-    if not checkRoot(path):
-        return '', '', 403
-
-    file = os.open(path, os.O_RDONLY)
-    extention = os.path.splitext(path)[1][1:].strip().lower()
-    contentType = f'text/{extention};charset=utf8'
-
-    return file, contentType, 200
-
-def checkRoot(path):
-    # extention = os.path.splitext(path)[1][1:].strip().lower()
-    # return extention == 'html'
-    return True
-
+    return staticWorker.getStatic(root, path)
 
 def sendResponse(conn, resp):
     wfile = conn.makefile('wb')

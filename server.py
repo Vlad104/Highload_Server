@@ -8,24 +8,22 @@ import configparser
 import myHttp
 
 CONFIG_PATH = './httpd.conf'
-IP = 'localhost'
-PORT = 9091
-MAX_CONNECTIONS = 1
-CPU_LIMIT = 1
-ROOT = './'
+MAX_CONNECTIONS = 10
 
 def config(mode='DEV'):
     config = configparser.ConfigParser()
     if (os.path.isfile(CONFIG_PATH)):
         config.read(CONFIG_PATH)
-        IP = config[mode]['ip']
-        PORT = config[mode]['port']
-        CPU_LIMIT = config[mode]['cpu_limit']
-        ROOT = config[mode]['document_root']
+        ip = config[mode]['ip']
+        port = config[mode]['port']
+        cpu_limit = config[mode]['cpu_limit']
+        root = config[mode]['document_root']
+
+        return ip, int(port), int(cpu_limit), root
     else:
         config[mode] = {
             'ip': 'localhost',
-            'port': '9091',
+            'port': '80',
             'cpu_limit': '4',
             'thread_limit': '256',
             'document_root': '/var/www/html',
@@ -34,31 +32,45 @@ def config(mode='DEV'):
         with open(CONFIG_PATH, 'w') as configfile:
             config.write(configfile)
 
-def doFork():
+        return 'localhost', 80, 4, '/var/www/html'
+
+def doFork(cpu_limit = 1):
     pids = []
-    for i in range(CPU_LIMIT):
+    for _ in range(1, cpu_limit):
         pid = os.fork()
+        if pid == 0:
+            break
         pids.append(pid)
 
     return pids
 
-def createSocket():
+def createSocket(ip, port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setblocking(0)
-    server.bind((IP, PORT))
+    server.bind((ip, port))
     server.listen(MAX_CONNECTIONS)
 
     return server
 
+def log(req, res):
+    print(f'Response for {req.method} {req.target}')
+    print(f'Status: {res.status}')
+    print(f'Header: {res.headers}')
+    print(f'\n')
+
 def main():
-    config()
-    print(f'Starting server on {IP}:{PORT} ...')
-    pids = doFork()
-    print(f'Server using {len(pids)} cpus\n Pids: {pids} ...')
-    server = createSocket()
+    ip, port, cpu_limit, root = config()
+    print(f'Starting server on {ip}:{port} ...')
+    print(f'Static dir:{root}')
+    print(f'Server using {cpu_limit} cpus')
+    server = createSocket(ip, port)
+
+    pids = doFork(cpu_limit)
+    print('pids: ', pids)
+
     epoll = select.epoll()
     epoll.register(server.fileno(), select.EPOLLIN | select.EPOLLET)
-
+    
     try:
         connections = {}
         requests = {}
@@ -69,7 +81,7 @@ def main():
                 if fileno == server.fileno():
                     try:
                         while True:
-                            conn, address = server.accept()
+                            conn, _ = server.accept()
                             conn.setblocking(0)
                             epoll.register(conn.fileno(), select.EPOLLIN | select.EPOLLET)
                             connections[conn.fileno()] = conn
@@ -78,13 +90,16 @@ def main():
                         pass
 
                 elif event & select.EPOLLIN:
-                    requests[fileno] = myHttp.handleRequest(connections[fileno])
-                    epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
-                    responses[fileno] = myHttp.makeResponse(requests[fileno])
+                    req = myHttp.handleRequest(connections[fileno])
+                    if req:
+                        requests[fileno] = req
+                        epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
+                        responses[fileno] = myHttp.makeResponse(root, requests[fileno])
 
 
                 elif event & select.EPOLLOUT:
                     myHttp.sendResponse(connections[fileno], responses[fileno])
+                    log(requests[fileno], responses[fileno])
                     responses[fileno] = None
 
                     if responses[fileno] is None:
@@ -100,7 +115,7 @@ def main():
         print ('KeyboardInterrupt')
 
     finally:
-        print ("Server stoped")
+        print ("Server stopped")
         epoll.unregister(server.fileno())
         epoll.close()
         server.close()
