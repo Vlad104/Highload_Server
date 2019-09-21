@@ -8,7 +8,7 @@ RUN apt-get install -y git
 RUN apt-get install -y python3
 RUN apt-get install -y python3-pip
 
-RUN pip3 install -y configparser
+RUN pip3 install configparser
 
 RUN git clone https://github.com/Vlad104/Highload_Server.git # anticache comment
 WORKDIR Highload_Server
