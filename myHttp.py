@@ -23,9 +23,9 @@ class Response:
 
 STATUSES = {
     200: 'OK',
-    403: 'Forbiten',
-    404: 'Not found',
-    405: '405'
+    403: 'Forbidden',
+    404: 'Not Found',
+    405: 'Not Allowed'
 }
 
 SERVER_NAME = 'python_select_epoll'
@@ -36,24 +36,18 @@ def handleRequest(conn):
 def parseRequest(conn):
     try:
         rfile = conn.makefile('rb')
-        method, target, ver = parseLine(rfile)
+        method, target, ver = parseFirstLine(rfile)
         headers = parseHeaders(rfile)
         return Request(method, target, ver, headers, rfile)
     except:
         return None
 
-def parseLine(rfile):
+def parseFirstLine(rfile):
     raw = rfile.readline()
-
-    req_line = str(raw, 'UTF-8')
-    req_line = req_line.rstrip('\r\n')
-    words = req_line.split()
-    if len(words) != 3:
-        raise Exception('Malformed request line')
-
-    method, target, ver = words
-    if ver != 'HTTP/1.1':
-        raise Exception('Unexpected HTTP version')
+    line = str(raw, 'UTF-8')
+    line = line.rstrip('\r\n')
+    params = line.split()
+    method, target, ver = params
 
     return method, target, ver
 
@@ -79,18 +73,15 @@ def makeResponse(root, req):
         return responseToError(req)
 
 def responseToHead(root, req):
-    path = req.target
-    status, _ = staticWorker.getFileStatus(root, path)
+    resp = responseGetOrHead(root, req)
+    resp.body = None
 
-    headers = {
-        'Server': SERVER_NAME,
-        'Date': str(datetime.datetime.now()),
-        'Connection': 'keep-alive'
-    }
-
-    return Response(status, STATUSES[status], headers)
+    return resp
 
 def responseToGet(root, req):
+    return responseGetOrHead(root, req)
+
+def responseGetOrHead(root, req):
     body, contentType, status = makeBody(root, req)
 
     headers = {}
@@ -110,6 +101,7 @@ def responseToGet(root, req):
         }
 
     return Response(status, STATUSES[status], headers, body)
+
 
 def responseToError(req):
     return Response(405, STATUSES[405])

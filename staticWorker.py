@@ -30,7 +30,8 @@ def getFileStatus(root, path):
 
         if isDir(path):
             if not isFile(f'{path}index.html'):
-                return 404, ''
+                # return 404, ''
+                return 403, ''
             return 200, f'{path}index.html'
 
         if not isFile(path):

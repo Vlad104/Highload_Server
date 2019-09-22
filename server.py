@@ -5,10 +5,15 @@ import random
 import os
 import configparser
 
+import multiprocessing as multiprocessing
+import psutil
+
 import myHttp
+import myMulticore
 
 CONFIG_PATH = '/etc/httpd.conf'
 MAX_CONNECTIONS = 1000
+MODE='DEV'
 
 def config(mode='DEV'):
     config = configparser.ConfigParser()
@@ -34,16 +39,6 @@ def config(mode='DEV'):
 
         return '0.0.0.0', 80, 4, '/var/www/html'
 
-def doFork(cpu_limit = 1):
-    pids = []
-    for _ in range(1, cpu_limit):
-        pid = os.fork()
-        if pid == 0:
-            break
-        pids.append(pid)
-
-    return pids
-
 def createSocket(ip, port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setblocking(0)
@@ -62,11 +57,10 @@ def main():
     ip, port, cpu_limit, root = config()
     print(f'Starting server on {ip}:{port} ...')
     print(f'Static dir:{root}')
-    print(f'Server using {cpu_limit} cpus')
     server = createSocket(ip, port)
 
-    pids = doFork(cpu_limit)
-    print('pids: ', pids)
+    # myMulticore.fork()
+    myMulticore.simpleFork(cpu_limit)
 
     epoll = select.epoll()
     epoll.register(server.fileno(), select.EPOLLIN | select.EPOLLET)
