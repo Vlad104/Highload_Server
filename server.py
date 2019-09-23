@@ -64,7 +64,7 @@ def main():
 
     epoll = select.epoll()
     epoll.register(server.fileno(), select.EPOLLIN | select.EPOLLET)
-    
+
     try:
         connections = {}
         requests = {}
@@ -98,7 +98,10 @@ def main():
 
                     if responses[fileno] is None:
                         epoll.modify(fileno, select.EPOLLET)
-                        connections[fileno].shutdown(socket.SHUT_RDWR)
+                        try:
+                            connections[fileno].shutdown(socket.SHUT_RDWR)
+                        except:
+                            print('Same problem with shout down')
 
                 elif event & select.EPOLLHUP:
                     epoll.unregister(fileno)
