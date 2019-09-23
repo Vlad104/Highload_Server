@@ -51,6 +51,7 @@ def main():
                 elif event & select.EPOLLIN:
                     req = myHttp.handleRequest(connections[fileno])
                     if req is None:
+                        print('405')
                         continue
                     requests[fileno] = req
                     epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
@@ -70,7 +71,7 @@ def main():
                 elif event & select.EPOLLHUP:
                     epoll.unregister(fileno)
                     connections[fileno].close()
-                    # del connections[fileno]
+                    del connections[fileno]
 
     except KeyboardInterrupt:
         print ('KeyboardInterrupt')

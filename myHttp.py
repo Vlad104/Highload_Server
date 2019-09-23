@@ -31,30 +31,37 @@ STATUSES = {
 SERVER_NAME = 'python_select_epoll'
 
 def handleRequest(conn):
-    return parseRequest(conn)
+    # return parseRequest(conn)
+    return parseRequestViaFile(conn)
 
 def parseRequest(conn):
     try:
-        rfile = conn.makefile('rb')
-        method, target, ver = parseFirstLine(rfile)
-        headers = parseHeaders(rfile)
+        buff = b''
+        while True:
+            temp = b''
+            temp = conn.recv(1024)
+            if not temp:
+                break
+            buff += temp
+
+        strBuff = str(buff, 'UTF-8')
+        lines = strBuff.rstrip('\r\n')
+
+        method, target, ver = parseFirstLine(lines[0])
+        headers = parseHeaders(lines[1:])
         return Request(method, target, ver, headers, rfile)
     except:
         return None
 
-def parseFirstLine(rfile):
-    raw = rfile.readline()
-    line = str(raw, 'UTF-8')
-    line = line.rstrip('\r\n')
+def parseFirstLine(line):
     params = line.split()
     method, target, ver = params
 
     return method, target, ver
 
-def parseHeaders(rfile):
+def parseHeaders(lines):
     headers = []
-    while True:
-        line = rfile.readline()
+    for line in lines:
         if line in (b'\r\n', b'\n', b''):
             break
         headers.append(line)
@@ -114,7 +121,7 @@ def makeBody(root, req):
 
     fileContent = b''
     while True:
-        buff = os.read(file, 1024)
+        buff = os.read(file, 4196)
         if not buff:
             break
         fileContent += buff
@@ -129,6 +136,53 @@ def getFile(root, req):
     return staticWorker.getStatic(root, path)
 
 def sendResponse(conn, resp):
+    data = bytes(f'HTTP/1.1 {resp.status} {resp.reason}\r\n', 'UTF-8')
+
+    if resp.headers:
+        for key in resp.headers:
+            data += bytes(f'{key}: {resp.headers[key]}\r\n', 'UTF-8')
+
+    data += b'\r\n'
+
+    if resp.body:
+        data += resp.body
+        data += b'\r\n'
+
+    while len(data) > 0:
+        bytesSent = conn.send(data)
+        data = data[bytesSent:]
+
+
+def parseRequestViaFile(conn):
+    try:
+        rfile = conn.makefile('rb')
+        method, target, ver = parseFirstLineViaFile(rfile)
+        headers = parseHeadersViaFile(rfile)
+        return Request(method, target, ver, headers, rfile)
+    except:
+        return None
+
+def parseFirstLineViaFile(rfile):
+    raw = rfile.readline()
+    line = str(raw, 'UTF-8')
+    line = line.rstrip('\r\n')
+    params = line.split()
+    method, target, ver = params
+
+    return method, target, ver
+
+def parseHeadersViaFile(rfile):
+    headers = []
+    while True:
+        line = rfile.readline()
+        if line in (b'\r\n', b'\n', b''):
+            break
+        headers.append(line)
+
+    sheaders = b''.join(headers).decode('UTF-8')
+    return Parser().parsestr(sheaders)
+
+def sendResponseViaFile(conn, resp):
     wfile = conn.makefile('wb')
     status_line = f'HTTP/1.1 {resp.status} {resp.reason}\r\n'
     wfile.write(status_line.encode('UTF-8'))
