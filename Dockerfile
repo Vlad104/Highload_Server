@@ -14,7 +14,7 @@ RUN pip3 install psutil
 RUN git clone https://github.com/Vlad104/Highload_Server.git # anticache comment
 WORKDIR Highload_Server
 
-RUN git clone https://github.com/init/http_test_suite.git # anticache comment
+RUN git clone https://github.com/init/http-test-suite.git # anticache comment
 RUN mv http_test_suite/httptest /var/www/html
 
 EXPOSE 80
