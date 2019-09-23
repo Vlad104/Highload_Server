@@ -73,23 +73,24 @@ def makeResponse(root, req):
         return responseToError(req)
 
 def responseToHead(root, req):
-    resp = responseGetOrHead(root, req)
+    resp = responseCommon(root, req)
     resp.body = None
 
     return resp
 
 def responseToGet(root, req):
-    return responseGetOrHead(root, req)
+    return responseCommon(root, req)
 
-def responseGetOrHead(root, req):
+def responseCommon(root, req):
     body, contentType, status = makeBody(root, req)
+    connectionType = 'keep-alive'
 
     headers = {}
     if status == 200:
         headers = {
             'Server': SERVER_NAME,
             'Date': str(datetime.datetime.now()),
-            'Connection': 'keep-alive',
+            'Connection': connectionType,
             'Content-Length': len(body),
             'Content-Type': contentType
         }
@@ -97,7 +98,7 @@ def responseGetOrHead(root, req):
         headers = {
             'Server': SERVER_NAME,
             'Date': str(datetime.datetime.now()),
-            'Connection': 'keep-alive'
+            'Connection': connectionType
         }
 
     return Response(status, STATUSES[status], headers, body)
