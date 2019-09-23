@@ -1,49 +1,16 @@
 import socket
 import select
-import time
-import random
-import os
-import configparser
-
-import multiprocessing as multiprocessing
-import psutil
 
 import myHttp
 import myMulticore
+import myConfigurator
 
-CONFIG_PATH = '/etc/httpd.conf'
-MAX_CONNECTIONS = 1000
-MODE='DEV'
-
-def config(mode='DEV'):
-    config = configparser.ConfigParser()
-    if (os.path.isfile(CONFIG_PATH)):
-        config.read(CONFIG_PATH)
-        ip = config[mode]['ip']
-        port = config[mode]['port']
-        cpu_limit = config[mode]['cpu_limit']
-        root = config[mode]['document_root']
-
-        return ip, int(port), int(cpu_limit), root
-    else:
-        config[mode] = {
-            'ip': '0.0.0.0',
-            'port': '80',
-            'cpu_limit': '4',
-            'thread_limit': '256',
-            'document_root': '/var/www/html',
-        }
-
-        with open(CONFIG_PATH, 'w') as configfile:
-            config.write(configfile)
-
-        return '0.0.0.0', 80, 4, '/var/www/html'
-
-def createSocket(ip, port):
+def createSocket(ip, port, max_connections):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setblocking(0)
+    server.setblocking(False)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((ip, port))
-    server.listen(MAX_CONNECTIONS)
+    server.listen(max_connections)
 
     return server
 
@@ -54,59 +21,56 @@ def log(req, res):
     print(f'\n')
 
 def main():
-    ip, port, cpu_limit, root = config()
+    ip, port, cpu_limit, root, max_connections = myConfigurator.config()
     print(f'Starting server on {ip}:{port} ...')
     print(f'Static dir:{root}')
-    server = createSocket(ip, port)
+    server = createSocket(ip, port, max_connections)
 
-    # myMulticore.fork()
-    myMulticore.simpleFork(cpu_limit)
+    myMulticore.fork(cpu_limit)
 
     epoll = select.epoll()
     epoll.register(server.fileno(), select.EPOLLIN | select.EPOLLET)
 
+    connections = {}
+    requests = {}
+    responses = {}
+
     try:
-        connections = {}
-        requests = {}
-        responses = {}
         while True:
             events = epoll.poll(1)
             for fileno, event in events:
                 if fileno == server.fileno():
                     try:
-                        while True:
-                            conn, _ = server.accept()
-                            conn.setblocking(0)
-                            epoll.register(conn.fileno(), select.EPOLLIN | select.EPOLLET)
-                            connections[conn.fileno()] = conn
-                            requests[conn.fileno()] = b''
+                        conn, _ = server.accept()
+                        conn.setblocking(False)
+                        epoll.register(conn.fileno(), select.EPOLLIN | select.EPOLLET)
+                        connections[conn.fileno()] = conn
                     except socket.error:
-                        pass
+                        print(socket.error)
 
                 elif event & select.EPOLLIN:
                     req = myHttp.handleRequest(connections[fileno])
-                    if req:
-                        requests[fileno] = req
-                        epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
-                        responses[fileno] = myHttp.makeResponse(root, requests[fileno])
-
+                    if req is None:
+                        continue
+                    requests[fileno] = req
+                    epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
+                    responses[fileno] = myHttp.makeResponse(root, requests[fileno])
 
                 elif event & select.EPOLLOUT:
                     myHttp.sendResponse(connections[fileno], responses[fileno])
                     log(requests[fileno], responses[fileno])
-                    responses[fileno] = None
-
-                    if responses[fileno] is None:
-                        epoll.modify(fileno, select.EPOLLET)
-                        try:
-                            connections[fileno].shutdown(socket.SHUT_RDWR)
-                        except:
-                            print('Same problem with shout down')
+                    # del requests[fileno]
+                    # del responses[fileno]
+                    epoll.modify(fileno, select.EPOLLET)
+                    try:
+                        connections[fileno].shutdown(socket.SHUT_RDWR)
+                    except:
+                        print('Force shout down')
 
                 elif event & select.EPOLLHUP:
                     epoll.unregister(fileno)
                     connections[fileno].close()
-                    del connections[fileno]
+                    # del connections[fileno]
 
     except KeyboardInterrupt:
         print ('KeyboardInterrupt')
@@ -117,4 +81,5 @@ def main():
         epoll.close()
         server.close()
 
-main()
+if __name__ == '__main__':
+    main()
