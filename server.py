@@ -23,15 +23,15 @@ def log(req, res):
     print(f'Header: {res.headers}')
     print(f'\n')
 
-ip, port, cpu_limit, root, max_connections = myConfigurator.config()
-print(f'Starting server on {ip}:{port} ...')
-print(f'Static dir:{root}')
-server = createSocket(ip, port, max_connections)
 
-def cpusFork(cpus, server):
+def cpusFork():
+    ip, port, cpu_limit, root, max_connections = myConfigurator.config()
+    server = createSocket(ip, port, max_connections)
+    print(f'Starting server on {ip}:{port} ...')
+    print(f'Static dir:{root}')
     procs = list()
-    for cpu in range(cpus):
-        d = dict(server=server)
+    for cpu in range(cpu_limit):
+        d = dict(server=server, root=root)
         p = mp.Process(target=main, kwargs=d)
         p.start()
         procs.append(p)
@@ -39,7 +39,7 @@ def cpusFork(cpus, server):
         p.join()
         print('joined')
 
-def main(server):
+def main(server, root):
     # myMulticore.fork(cpu_limit)
 
     epoll = select.epoll()
@@ -100,4 +100,4 @@ def main(server):
         epoll.close()
         server.close()
 
-cpusFork(cpu_limit, server)
+cpusFork()
