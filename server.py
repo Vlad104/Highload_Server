@@ -28,11 +28,10 @@ print(f'Starting server on {ip}:{port} ...')
 print(f'Static dir:{root}')
 server = createSocket(ip, port, max_connections)
 
-def cpusFork(cpus):
+def cpusFork(cpus, server):
     procs = list()
     for cpu in range(cpus):
-        affinity = [cpu]
-        d = dict(affinity=affinity)
+        d = dict(server=server)
         p = mp.Process(target=main, kwargs=d)
         p.start()
         procs.append(p)
@@ -40,7 +39,7 @@ def cpusFork(cpus):
         p.join()
         print('joined')
 
-def main():
+def main(server):
     # myMulticore.fork(cpu_limit)
 
     epoll = select.epoll()
@@ -102,4 +101,4 @@ def main():
         epoll.close()
         server.close()
 
-cpusFork(cpu_limit)
+cpusFork(cpu_limit, server)
