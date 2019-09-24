@@ -41,21 +41,23 @@ def main():
             for fileno, event in events:
                 if fileno == server.fileno():
                     try:
-                        conn, _ = server.accept()
-                        conn.setblocking(False)
-                        epoll.register(conn.fileno(), select.EPOLLIN | select.EPOLLET)
-                        connections[conn.fileno()] = conn
+                        while True:
+                            conn, _ = server.accept()
+                            conn.setblocking(False)
+                            epoll.register(conn.fileno(), select.EPOLLIN | select.EPOLLET)
+                            connections[conn.fileno()] = conn
+                            requests[conn.fileno()] = b''
                     except socket.error:
                         print(socket.error)
 
                 elif event & select.EPOLLIN:
                     req = myHttp.handleRequest(connections[fileno])
-                    if req is None:
+                    if req:
+                        requests[fileno] = req
+                        epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
+                        responses[fileno] = myHttp.makeResponse(root, requests[fileno])
+                    else:
                         print('405')
-                        continue
-                    requests[fileno] = req
-                    epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
-                    responses[fileno] = myHttp.makeResponse(root, requests[fileno])
 
                 elif event & select.EPOLLOUT:
                     myHttp.sendResponse(connections[fileno], responses[fileno])
