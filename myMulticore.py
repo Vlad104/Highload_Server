@@ -5,10 +5,7 @@ import os
 def fork(cpu_limit = 1):
     cpus = psutil.cpu_count()
     print(f'Server runs at {cpu_limit} cpu')
-    if cpus < cpu_limit:
-        simpleFork()
-    else:
-        cpusFork(cpus)
+    simpleFork()
 
 def cpusFork(cpus = 1):
     procs = list()
