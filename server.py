@@ -5,6 +5,9 @@ import myHttp
 import myMulticore
 import myConfigurator
 
+import multiprocessing as mp
+import psutil
+
 def createSocket(ip, port, max_connections):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setblocking(False)
@@ -20,13 +23,25 @@ def log(req, res):
     print(f'Header: {res.headers}')
     print(f'\n')
 
-def main():
-    ip, port, cpu_limit, root, max_connections = myConfigurator.config()
-    print(f'Starting server on {ip}:{port} ...')
-    print(f'Static dir:{root}')
-    server = createSocket(ip, port, max_connections)
+ip, port, cpu_limit, root, max_connections = myConfigurator.config()
+print(f'Starting server on {ip}:{port} ...')
+print(f'Static dir:{root}')
+server = createSocket(ip, port, max_connections)
 
-    myMulticore.fork(cpu_limit)
+def cpusFork(cpus):
+    procs = list()
+    for cpu in range(cpus):
+        affinity = [cpu]
+        d = dict(affinity=affinity)
+        p = mp.Process(target=main, kwargs=d)
+        p.start()
+        procs.append(p)
+    for p in procs:
+        p.join()
+        print('joined')
+
+def main():
+    # myMulticore.fork(cpu_limit)
 
     epoll = select.epoll()
     epoll.register(server.fileno(), select.EPOLLIN | select.EPOLLET)
@@ -87,5 +102,4 @@ def main():
         epoll.close()
         server.close()
 
-if __name__ == '__main__':
-    main()
+cpusFork(cpu_limit)
