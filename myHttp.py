@@ -90,7 +90,7 @@ def responseToGet(root, req):
 
 def responseCommon(root, req):
     body, contentType, status = makeBody(root, req)
-    connectionType = 'close'
+    connectionType = 'keep-alive'
 
     headers = {}
     if status == 200:

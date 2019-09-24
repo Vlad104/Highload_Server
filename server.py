@@ -6,7 +6,7 @@ import myMulticore
 import myConfigurator
 
 import multiprocessing as mp
-import psutil
+# import psutil
 
 def createSocket(ip, port, max_connections):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -53,44 +53,43 @@ def main(server):
         while True:
             events = epoll.poll(1)
             for fileno, event in events:
-                if fileno == server.fileno():
-                    try:
-                        while True:
-                            conn, _ = server.accept()
-                            conn.setblocking(False)
-                            epoll.register(conn.fileno(), select.EPOLLIN | select.EPOLLET)
-                            connections[conn.fileno()] = conn
-                            requests[conn.fileno()] = b''
-                    except socket.error:
-                        # print(socket.error)
-                        pass
+                try:
+                    if fileno == server.fileno():
+                        try:
+                            while True:
+                                conn, _ = server.accept()
+                                conn.setblocking(False)
+                                epoll.register(conn.fileno(), select.EPOLLIN | select.EPOLLET)
+                                connections[conn.fileno()] = conn
+                                requests[conn.fileno()] = b''
+                        except socket.error:
+                            pass
 
-                elif event & select.EPOLLIN:
-                    req = myHttp.handleRequest(connections[fileno])
-                    if req:
-                        requests[fileno] = req
-                        epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
-                        responses[fileno] = myHttp.makeResponse(root, requests[fileno])
-                    else:
-                        pass
-                        # print('405')
+                    elif event & select.EPOLLIN:
+                        req = myHttp.handleRequest(connections[fileno])
+                        if req:
+                            requests[fileno] = req
+                            epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
+                            responses[fileno] = myHttp.makeResponse(root, requests[fileno])
+                        else:
+                            pass
 
-                elif event & select.EPOLLOUT:
-                    myHttp.sendResponse(connections[fileno], responses[fileno])
-                    # log(requests[fileno], responses[fileno])
-                    # del requests[fileno]
-                    # del responses[fileno]
-                    epoll.modify(fileno, select.EPOLLET)
-                    try:
-                        connections[fileno].shutdown(socket.SHUT_RDWR)
-                    except:
-                        pass
-                        # print('Force shout down')
+                    elif event & select.EPOLLOUT:
+                        myHttp.sendResponse(connections[fileno], responses[fileno])
+                        del requests[fileno]
+                        del responses[fileno]
+                        epoll.modify(fileno, select.EPOLLET)
+                        try:
+                            connections[fileno].shutdown(socket.SHUT_RDWR)
+                        except:
+                            pass
 
-                elif event & select.EPOLLHUP:
-                    epoll.unregister(fileno)
-                    connections[fileno].close()
-                    del connections[fileno]
+                    elif event & select.EPOLLHUP:
+                        epoll.unregister(fileno)
+                        connections[fileno].close()
+                        del connections[fileno]
+                except:
+                    pass
 
     except KeyboardInterrupt:
         print ('KeyboardInterrupt')
