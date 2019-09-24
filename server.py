@@ -48,7 +48,8 @@ def main():
                             connections[conn.fileno()] = conn
                             requests[conn.fileno()] = b''
                     except socket.error:
-                        print(socket.error)
+                        # print(socket.error)
+                        pass
 
                 elif event & select.EPOLLIN:
                     req = myHttp.handleRequest(connections[fileno])
