@@ -57,18 +57,20 @@ def main():
                         epoll.modify(fileno, select.EPOLLOUT | select.EPOLLET)
                         responses[fileno] = myHttp.makeResponse(root, requests[fileno])
                     else:
-                        print('405')
+                        pass
+                        # print('405')
 
                 elif event & select.EPOLLOUT:
                     myHttp.sendResponse(connections[fileno], responses[fileno])
-                    log(requests[fileno], responses[fileno])
+                    # log(requests[fileno], responses[fileno])
                     # del requests[fileno]
                     # del responses[fileno]
                     epoll.modify(fileno, select.EPOLLET)
                     try:
                         connections[fileno].shutdown(socket.SHUT_RDWR)
                     except:
-                        print('Force shout down')
+                        pass
+                        # print('Force shout down')
 
                 elif event & select.EPOLLHUP:
                     epoll.unregister(fileno)
