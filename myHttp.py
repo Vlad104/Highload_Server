@@ -29,17 +29,20 @@ STATUSES = {
 }
 
 SERVER_NAME = 'python_select_epoll'
+RECV_SIZE = 64*1024
+OS_READ_SIZE = 1024*1024
 
 def handleRequest(conn):
     # return parseRequest(conn)
     return parseRequestViaFile(conn)
 
+# not used
 def parseRequest(conn):
     try:
         buff = b''
         while True:
             temp = b''
-            temp = conn.recv(1024)
+            temp = conn.recv(RECV_SIZE)
             if not temp:
                 break
             buff += temp
@@ -121,7 +124,7 @@ def makeBody(root, req):
 
     fileContent = b''
     while True:
-        buff = os.read(file, 4196)
+        buff = os.read(file, OS_READ_SIZE)
         if not buff:
             break
         fileContent += buff
@@ -135,6 +138,7 @@ def getFile(root, req):
 
     return staticWorker.getStatic(root, path)
 
+# not used
 def sendResponse(conn, resp):
     data = bytes(f'HTTP/1.1 {resp.status} {resp.reason}\r\n', 'UTF-8')
 

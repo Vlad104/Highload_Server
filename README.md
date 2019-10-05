@@ -1,3 +1,13 @@
+# How to check:
+* apt-get update
+* apt-get install apache2-utils
+* apt-get install nginx
+
+* service nginx start
+* ab -c 100 -n 10000 http://localhost/httptest/wikipedia_russia.html (1200 rps with my machine)
+* service nginx stopped
+* sudo python3 server.py (600 rps with my machine)
+
 Web server test suite
 =====================
 

@@ -1,12 +1,9 @@
 import socket
 import select
+import multiprocessing as mp
 
 import myHttp
-import myMulticore
 import myConfigurator
-
-import multiprocessing as mp
-# import psutil
 
 def createSocket(ip, port, max_connections):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -30,7 +27,7 @@ def cpusFork():
     print(f'Starting server on {ip}:{port} ...')
     print(f'Static dir:{root}')
     procs = list()
-    for cpu in range(cpu_limit):
+    for _ in range(cpu_limit):
         d = dict(server=server, root=root)
         p = mp.Process(target=main, kwargs=d)
         p.start()
@@ -75,7 +72,7 @@ def main(server, root):
                             pass
 
                     elif event & select.EPOLLOUT:
-                        myHttp.sendResponse(connections[fileno], responses[fileno])
+                        myHttp.sendResponseViaFile(connections[fileno], responses[fileno])
                         del requests[fileno]
                         del responses[fileno]
                         epoll.modify(fileno, select.EPOLLET)
