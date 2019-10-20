@@ -1,6 +1,8 @@
 import socket
 import select
 import multiprocessing as mp
+import sys
+import hashlib as h
 
 import myHttp
 import myConfigurator
@@ -72,6 +74,8 @@ def main(server, root):
                             pass
 
                     elif event & select.EPOLLOUT:
+                        for i in range(DELAY):
+                            str = h.md5(b'lets make a big delay!')
                         myHttp.sendResponseViaFile(connections[fileno], responses[fileno])
                         del requests[fileno]
                         del responses[fileno]
@@ -97,4 +101,6 @@ def main(server, root):
         epoll.close()
         server.close()
 
+DELAY = 0 if len(sys.argv) < 2 else int(sys.argv[1])
+print("Delay is: ", DELAY)
 cpusFork()
