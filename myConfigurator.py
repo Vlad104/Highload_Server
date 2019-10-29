@@ -15,13 +15,12 @@ def config(path=CONFIG_PATH):
     config = configparser.ConfigParser()
     try:
         config.read(path)
-        # ip = config[mode]['ip']
-        # port = config[mode]['port']
+        # ip = config['ip']
+        # port = config['port']
         ip = '0.0.0.0'
         port = 80
         cpu_limit = config['cpu_limit']
         root = config['document_root']
-        # max_connections = config['max_connections']
         max_connections = 10000
 
         return ip, int(port), int(cpu_limit), root, int(max_connections)

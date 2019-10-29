@@ -30,7 +30,7 @@ STATUSES = {
 
 SERVER_NAME = 'python_select_epoll'
 RECV_SIZE = 64*1024
-OS_READ_SIZE = 1024*1024
+OS_READ_SIZE = 256*1024
 
 def handleRequest(conn):
     # return parseRequest(conn)
